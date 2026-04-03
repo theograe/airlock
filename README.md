@@ -22,9 +22,7 @@ Before setting up airlock, make sure:
 
 3. **Your agent calls airlock instead of the API directly.** Instead of giving your agent an X API key, give it access to `http://localhost:4444/queue`. Airlock holds the real keys and only uses them when you approve.
 
-4. **A server with a public IP.** Telegram needs to reach your webhook server. Any VPS works (Hetzner, DigitalOcean, AWS, etc).
-
-5. **Node.js 18+** and **openssl** (for generating self-signed certs).
+4. **Node.js 18+**
 
 Without #1 and #2, airlock's approval gate can be bypassed. The approval flow is cryptographically secure, but it assumes the agent process is isolated from the secrets.
 
@@ -36,6 +34,7 @@ AI agents with API keys have two failure modes:
 2. **Rogue behavior** - the agent misinterprets instructions or makes bad judgment calls on its own
 
 Airlock solves both by putting a cryptographically verified human approval step between your agent and any sensitive action. The agent can read, search, and organize freely - but anything that speaks as you, spends your money, or contacts someone requires your explicit approval via Telegram.
+
 ## How it works
 
 ```
@@ -48,7 +47,7 @@ Agent                    Airlock                  You (Telegram)
   |                        |                          |
   |                        |<-- tap approve --------- |
   |                        |   (verified real tap)    |
-  |                        |-- execute action ------->|
+  |                        |-- execute action         |
   |                        |-- "Approved" ----------->|
 ```
 
@@ -58,8 +57,6 @@ Agent                    Airlock                  You (Telegram)
 - **HMAC tamper detection** - content is hashed at queue time and verified at execution, so the agent can't modify a pending request after you've seen it
 - **Telegram callback verification** - the server verifies each button tap is a real Telegram callback, not a forged HTTP request
 - **User ID allowlist** - only your Telegram account can approve actions
-- **Webhook secret token** - Telegram signs webhook requests, rejecting non-Telegram traffic
-- **Self-signed cert** - works on any server with a public IP, no domain needed
 
 ## Quick start
 
@@ -70,9 +67,7 @@ npx airlock init
 This walks you through setup:
 1. Enter your Telegram bot token (create one via [@BotFather](https://t.me/BotFather))
 2. Enter your Telegram user ID
-3. Enter your server's public IP
-4. Generates self-signed certs
-5. Registers the Telegram webhook
+3. Sends a test message to confirm it works
 
 Then define your executors in `airlock.config.ts`:
 
@@ -86,7 +81,7 @@ const config: AirlockConfig = {
     tweet: async (data) => {
       const res = await fetch('https://api.x.com/2/tweets', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.X_TOKEN}` },
+        headers: { Authorization: `Bearer ${process.env.X_TOKEN}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: data.text }),
       })
       return { success: true, message: 'Tweet posted' }
@@ -129,23 +124,24 @@ curl http://localhost:4444/pending
 
 The `context` field is optional - it lets the agent explain why it wants to take this action, which shows up in your Telegram message.
 
+Works locally, on servers, anywhere Node runs. No public IP or domain required.
+
 ## Architecture
 
-Airlock runs two servers:
+Airlock runs one HTTP server on localhost and polls Telegram for approval button taps.
 
-| Server | Port | Protocol | Purpose |
-|--------|------|----------|---------|
-| Queue | 4444 | HTTP | Agent submits actions (localhost only) |
-| Webhook | 8443 | HTTPS | Telegram delivers button taps |
+| Component | Port | Purpose |
+|-----------|------|---------|
+| Queue server | 4444 | Agent submits actions (localhost only) |
+| Telegram poller | - | Listens for approve/reject button taps |
 
-The queue server binds to `127.0.0.1` - only local processes can reach it. The webhook server uses HTTPS with a self-signed certificate that Telegram trusts (uploaded during `init`).
+The queue server binds to `127.0.0.1` - only local processes can reach it. Telegram communication uses long-polling, so no inbound ports or HTTPS certs are needed.
 
 ## Files
 
 ```
 .airlock/
-  .env                 # Secrets (bot token, HMAC key, webhook secret)
-  certs/               # Self-signed cert for HTTPS webhook
+  .env                 # Secrets (bot token, HMAC key)
   data/
     pending/           # Queued actions waiting for approval
     done/              # Resolved actions (approved/rejected)

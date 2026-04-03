@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { execSync } from 'child_process'
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
 import path from 'path'
 import { createInterface } from 'readline'
@@ -16,64 +15,65 @@ function ask(question: string): Promise<string> {
 async function init() {
   console.log('\n  airlock init\n')
 
-  // Create .airlock directory
   mkdirSync(path.join(AIRLOCK_DIR, 'data', 'pending'), { recursive: true })
   mkdirSync(path.join(AIRLOCK_DIR, 'data', 'done'), { recursive: true })
-  mkdirSync(path.join(AIRLOCK_DIR, 'certs'), { recursive: true })
 
-  // Get info
   const botToken = await ask('  Telegram bot token (from @BotFather): ')
   const userId = await ask('  Your Telegram user ID: ')
-  const publicIp = await ask('  Server public IP: ')
-  const webhookPort = await ask('  Webhook port [8443]: ') || '8443'
   const queuePort = await ask('  Queue port [4444]: ') || '4444'
 
-  // Generate secrets
   const secret = generateSecret()
-  const webhookSecret = generateSecret()
 
-  // Generate self-signed cert
-  console.log('\n  Generating self-signed certificate...')
-  execSync(
-    `openssl req -newkey rsa:2048 -sha256 -nodes ` +
-    `-keyout ${AIRLOCK_DIR}/certs/webhook.key ` +
-    `-x509 -days 3650 ` +
-    `-out ${AIRLOCK_DIR}/certs/webhook.pem ` +
-    `-subj "/CN=${publicIp}" ` +
-    `-addext "subjectAltName=IP:${publicIp}"`,
-    { stdio: 'pipe' }
-  )
+  // Verify bot token works
+  console.log('\n  Verifying bot token...')
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/getMe`)
+    const data = await res.json() as { ok: boolean; result?: { username: string } }
+    if (data.ok) {
+      console.log(`  Bot: @${data.result?.username}`)
+    } else {
+      console.log('  Warning: Bot token may be invalid')
+    }
+  } catch {
+    console.log('  Warning: Could not verify bot token')
+  }
 
-  // Write env file
+  // Send a test message
+  console.log('  Sending test message...')
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: userId, text: 'airlock connected.' }),
+    })
+    const data = await res.json() as { ok: boolean }
+    if (data.ok) {
+      console.log('  Test message sent - check Telegram')
+    } else {
+      console.log('  Warning: Could not send test message. Make sure you\'ve messaged the bot first.')
+    }
+  } catch {
+    console.log('  Warning: Could not send test message')
+  }
+
   const envContent = [
     `AIRLOCK_BOT_TOKEN=${botToken}`,
     `AIRLOCK_SECRET=${secret}`,
-    `AIRLOCK_WEBHOOK_SECRET=${webhookSecret}`,
     `AIRLOCK_ALLOWED_USERS=${userId}`,
-    `AIRLOCK_PUBLIC_HOST=${publicIp}`,
-    `AIRLOCK_WEBHOOK_PORT=${webhookPort}`,
     `AIRLOCK_QUEUE_PORT=${queuePort}`,
-    `AIRLOCK_CERT_PATH=${AIRLOCK_DIR}/certs/webhook.pem`,
-    `AIRLOCK_KEY_PATH=${AIRLOCK_DIR}/certs/webhook.key`,
     `AIRLOCK_DATA_DIR=${AIRLOCK_DIR}/data`,
   ].join('\n')
 
   writeFileSync(path.join(AIRLOCK_DIR, '.env'), envContent)
 
-  // Write example config
   if (!existsSync(CONFIG_FILE)) {
     writeFileSync(CONFIG_FILE, `import { type AirlockConfig } from 'airlock'
 
 const config: AirlockConfig = {
   botToken: process.env.AIRLOCK_BOT_TOKEN!,
   secret: process.env.AIRLOCK_SECRET!,
-  webhookSecret: process.env.AIRLOCK_WEBHOOK_SECRET!,
   allowedUsers: (process.env.AIRLOCK_ALLOWED_USERS || '').split(','),
-  publicHost: process.env.AIRLOCK_PUBLIC_HOST || '0.0.0.0',
-  webhookPort: parseInt(process.env.AIRLOCK_WEBHOOK_PORT || '${webhookPort}'),
   queuePort: parseInt(process.env.AIRLOCK_QUEUE_PORT || '${queuePort}'),
-  certPath: process.env.AIRLOCK_CERT_PATH || '.airlock/certs/webhook.pem',
-  keyPath: process.env.AIRLOCK_KEY_PATH || '.airlock/certs/webhook.key',
   dataDir: process.env.AIRLOCK_DATA_DIR || '.airlock/data',
 
   executors: {
@@ -95,37 +95,13 @@ export default config
 `)
   }
 
-  // Register webhook with Telegram
-  console.log('  Registering Telegram webhook...')
-  const certPem = readFileSync(`${AIRLOCK_DIR}/certs/webhook.pem`)
-  const webhookUrl = `https://${publicIp}:${webhookPort}/webhook`
-
-  const form = new FormData()
-  form.append('url', webhookUrl)
-  form.append('certificate', new Blob([certPem]), 'cert.pem')
-  form.append('allowed_updates', '["callback_query"]')
-  form.append('secret_token', webhookSecret)
-
-  const res = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
-    method: 'POST',
-    body: form,
-  })
-  const result = await res.json() as { ok: boolean; description?: string }
-
-  if (result.ok) {
-    console.log(`  Webhook registered: ${webhookUrl}`)
-  } else {
-    console.log(`  Webhook registration failed: ${result.description}`)
-  }
-
   console.log(`
   airlock initialized.
 
   Files:
-    .airlock/.env             - secrets (add to .gitignore)
-    .airlock/certs/           - self-signed cert for webhook
-    .airlock/data/            - pending and resolved approvals
-    airlock.config.ts         - define your executors here
+    .airlock/.env       secrets (add to .gitignore)
+    .airlock/data/      pending and resolved approvals
+    airlock.config.ts   define your executors here
 
   Next steps:
     1. Edit airlock.config.ts to add your executors
@@ -140,7 +116,6 @@ export default config
 }
 
 async function start() {
-  // Load .env
   const envPath = path.join(AIRLOCK_DIR, '.env')
   if (existsSync(envPath)) {
     const envContent = readFileSync(envPath, 'utf-8')
@@ -150,7 +125,6 @@ async function start() {
     }
   }
 
-  // Load config
   let config
   try {
     const mod = await import(path.resolve(CONFIG_FILE))
@@ -163,15 +137,7 @@ async function start() {
   console.log('\n  airlock starting...\n')
 
   const { startAirlock } = await import('../server.js')
-  const { bot } = startAirlock(config)
-
-  // Verify webhook is set
-  const info = await bot.getWebhookInfo()
-  if (info.url) {
-    console.log(`  Telegram webhook: ${info.url}`)
-  } else {
-    console.log('  Warning: No Telegram webhook set. Run "airlock init" to configure.')
-  }
+  startAirlock(config)
 
   console.log('\n  airlock is running. Press Ctrl+C to stop.\n')
 }
@@ -189,22 +155,19 @@ async function status() {
     if (key && rest.length) process.env[key] = rest.join('=')
   }
 
-  const { TelegramBot } = await import('../telegram.js')
-  const bot = new TelegramBot(process.env.AIRLOCK_BOT_TOKEN!)
-  const info = await bot.getWebhookInfo()
+  const { Store } = await import('../store.js')
+  const store = new Store(process.env.AIRLOCK_DATA_DIR || '.airlock/data')
+  const pending = await store.listPending()
 
   console.log(`
   airlock status
 
-  Webhook URL: ${info.url || '(not set)'}
-  Custom cert: ${info.has_custom_certificate}
-  Pending updates: ${info.pending_update_count}
   Queue port: ${process.env.AIRLOCK_QUEUE_PORT || '4444'}
-  Webhook port: ${process.env.AIRLOCK_WEBHOOK_PORT || '8443'}
+  Pending approvals: ${pending.length}
+  Allowed users: ${process.env.AIRLOCK_ALLOWED_USERS || '(none)'}
 `)
 }
 
-// CLI routing
 const command = process.argv[2]
 
 switch (command) {
@@ -216,8 +179,8 @@ switch (command) {
   airlock - human approval gate for AI agent actions
 
   Usage:
-    airlock init     Set up bot, certs, and webhook
-    airlock start    Start the queue + webhook servers
-    airlock status   Check webhook and server status
+    airlock init     Set up bot and config
+    airlock start    Start the approval server
+    airlock status   Check pending approvals
 `)
 }

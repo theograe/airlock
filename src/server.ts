@@ -1,6 +1,4 @@
 import { createServer as createHttpServer } from 'http'
-import { createServer as createHttpsServer } from 'https'
-import { readFileSync } from 'fs'
 import type { AirlockConfig, ApprovalRequest } from './types.js'
 import { TelegramBot } from './telegram.js'
 import { Store } from './store.js'
@@ -34,7 +32,6 @@ export function startAirlock(config: AirlockConfig) {
 
       await store.save(pending)
 
-      // Send Telegram approval to all allowed users
       for (const userId of config.allowedUsers) {
         await bot.sendApproval(userId, pending)
       }
@@ -61,120 +58,89 @@ export function startAirlock(config: AirlockConfig) {
     res.end()
   })
 
-  // --- HTTPS server for Telegram webhook callbacks ---
-  const webhookServer = createHttpsServer(
-    {
-      cert: readFileSync(config.certPath),
-      key: readFileSync(config.keyPath),
-    },
-    async (req, res) => {
-      if (req.method === 'POST' && req.url === '/webhook') {
-        // Verify webhook secret header
-        if (config.webhookSecret && req.headers['x-telegram-bot-api-secret-token'] !== config.webhookSecret) {
-          res.writeHead(403)
-          res.end('Forbidden')
-          return
-        }
+  // --- Poll Telegram for callback queries ---
+  let offset = 0
+  let polling = true
 
-        const chunks: Buffer[] = []
-        for await (const chunk of req) chunks.push(chunk as Buffer)
-        const body = JSON.parse(Buffer.concat(chunks).toString())
+  async function poll() {
+    while (polling) {
+      try {
+        const updates = await bot.getUpdates(offset, 30)
 
-        const parsed = TelegramBot.parseCallback(body)
-        if (!parsed) {
-          res.writeHead(400)
-          res.end('Invalid callback')
-          return
-        }
+        for (const update of updates) {
+          offset = update.update_id + 1
 
-        const { action, id, callback } = parsed
+          const parsed = TelegramBot.parseCallback(update)
+          if (!parsed) continue
 
-        // Check allowed user
-        if (!config.allowedUsers.includes(String(callback.from.id))) {
-          res.writeHead(403, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: 'Unauthorized user' }))
-          return
-        }
+          const { action, id, callback } = parsed
 
-        // Verify callback is real with Telegram API
-        const label = action === 'approve' ? 'Approved!' : 'Rejected.'
-        const verified = await bot.verifyCallback(callback.id, label)
-        if (!verified) {
-          res.writeHead(403, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: 'Callback verification failed' }))
-          return
-        }
+          // Check allowed user
+          if (!config.allowedUsers.includes(String(callback.from.id))) {
+            await bot.verifyCallback(callback.id, 'Unauthorized')
+            continue
+          }
 
-        // Load pending request
-        const pending = await store.get(id)
-        if (!pending) {
-          res.writeHead(404, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: 'Not found' }))
-          return
-        }
+          // Verify callback is real
+          const label = action === 'approve' ? 'Approved!' : 'Rejected.'
+          const verified = await bot.verifyCallback(callback.id, label)
+          if (!verified) continue
 
-        if (pending.status !== 'pending') {
-          res.writeHead(400, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: `Already ${pending.status}` }))
-          return
-        }
+          // Load pending request
+          const pending = await store.get(id)
+          if (!pending || pending.status !== 'pending') continue
 
-        // Verify content hasn't been tampered with
-        if (!verifyHash(config.secret, pending)) {
+          // Verify content hasn't been tampered with
+          if (!verifyHash(config.secret, pending)) {
+            const chatId = callback.message?.chat?.id
+            if (chatId) await bot.sendMessage(String(chatId), 'Rejected - content was modified after queuing.')
+            await store.resolve(id, 'rejected', { error: 'tamper detected' })
+            continue
+          }
+
           const chatId = callback.message?.chat?.id
-          if (chatId) await bot.sendMessage(String(chatId), 'Rejected - content was modified after queuing.')
-          await store.resolve(id, 'rejected', { error: 'tamper detected' })
-          res.writeHead(403, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: 'Content tampered' }))
-          return
-        }
 
-        const chatId = callback.message?.chat?.id
+          if (action === 'reject') {
+            await store.resolve(id, 'rejected')
+            if (chatId) await bot.sendMessage(String(chatId), 'Rejected and deleted.')
+            continue
+          }
 
-        if (action === 'reject') {
-          await store.resolve(id, 'rejected')
-          if (chatId) await bot.sendMessage(String(chatId), 'Rejected and deleted.')
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ status: 'rejected' }))
-          return
-        }
+          // Execute
+          const executor = config.executors[pending.type]
+          if (!executor) {
+            if (chatId) await bot.sendMessage(String(chatId), `No executor for type "${pending.type}".`)
+            continue
+          }
 
-        // Execute the action
-        const executor = config.executors[pending.type]
-        if (!executor) {
-          if (chatId) await bot.sendMessage(String(chatId), `No executor for type "${pending.type}".`)
-          res.writeHead(400, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: `No executor for type: ${pending.type}` }))
-          return
+          try {
+            const result = await executor(pending)
+            await store.resolve(id, 'approved', result.data)
+            if (chatId) await bot.sendMessage(String(chatId), result.message || 'Approved and executed.')
+          } catch (err) {
+            const errMsg = err instanceof Error ? err.message : String(err)
+            if (chatId) await bot.sendMessage(String(chatId), `Execution failed: ${errMsg}`)
+          }
         }
-
-        try {
-          const result = await executor(pending)
-          await store.resolve(id, 'approved', result.data)
-          if (chatId) await bot.sendMessage(String(chatId), result.message || 'Approved and executed.')
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ status: 'approved', ...result }))
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err)
-          if (chatId) await bot.sendMessage(String(chatId), `Execution failed: ${errMsg}`)
-          res.writeHead(500, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: errMsg }))
-        }
-        return
+      } catch (err) {
+        // Network error - wait and retry
+        await new Promise(r => setTimeout(r, 5000))
       }
-
-      res.writeHead(404)
-      res.end()
     }
-  )
+  }
 
   queueServer.listen(config.queuePort, '127.0.0.1', () => {
     console.log(`  Queue server: http://127.0.0.1:${config.queuePort}/queue`)
   })
 
-  webhookServer.listen(config.webhookPort, () => {
-    console.log(`  Webhook server: https://0.0.0.0:${config.webhookPort}/webhook`)
+  // Clear any existing webhook and start polling
+  bot.deleteWebhook().then(() => {
+    console.log('  Telegram: polling for approvals')
+    poll()
   })
 
-  return { queueServer, webhookServer, bot, store }
+  return {
+    queueServer, bot, store,
+    stop: () => { polling = false; queueServer.close() },
+  }
 }

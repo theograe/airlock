@@ -1,22 +1,12 @@
 export interface AirlockConfig {
   /** Telegram user IDs allowed to approve actions */
   allowedUsers: string[]
-  /** Port for the HTTPS webhook server (Telegram callbacks) */
-  webhookPort: number
   /** Port for the HTTP queue server (agent submits actions here) */
   queuePort: number
-  /** Path to self-signed cert for webhook HTTPS */
-  certPath: string
-  /** Path to private key for webhook HTTPS */
-  keyPath: string
-  /** Server's public IP or domain (for Telegram webhook URL) */
-  publicHost: string
   /** Approval bot token (from BotFather) */
   botToken: string
   /** Secret for HMAC content verification */
   secret: string
-  /** Webhook secret token (verified by Telegram in header) */
-  webhookSecret: string
   /** Directory to store pending/done approval files */
   dataDir: string
   /** Action executors - define what each action type does when approved */
