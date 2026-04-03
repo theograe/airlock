@@ -103,7 +103,7 @@ curl http://localhost:4444/pending
 
 The `context` field is optional - it lets the agent explain why it wants to take this action, which shows up in your Telegram message.
 
-Works with any agent framework: Hermes, LangChain, CrewAI, AutoGPT, Claude Code, or raw API calls.
+Works with any agent framework: OpenClaw, Hermes, LangChain, CrewAI, AutoGPT, Claude Code, or raw API calls.
 
 ## Architecture
 
