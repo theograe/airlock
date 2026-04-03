@@ -67,7 +67,7 @@ async function init() {
   writeFileSync(path.join(AIRLOCK_DIR, '.env'), envContent)
 
   if (!existsSync(CONFIG_FILE)) {
-    writeFileSync(CONFIG_FILE, `import { type AirlockConfig } from 'airlock'
+    writeFileSync(CONFIG_FILE, `import { type AirlockConfig } from 'agent-airlock'
 
 const config: AirlockConfig = {
   botToken: process.env.AIRLOCK_BOT_TOKEN!,
@@ -106,7 +106,7 @@ export default config
   Next steps:
     1. Edit airlock.config.ts to add your executors
     2. Add .airlock to .gitignore
-    3. Run: npx airlock start
+    3. Run: npx agent-airlock start
 
   Your agent queues actions with:
     curl -X POST http://localhost:${queuePort}/queue \\
