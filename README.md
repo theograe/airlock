@@ -1,10 +1,12 @@
 # airlock
 
-Approval gate for AI agent actions. Protect any API key from prompt injection and rogue behavior.
+Approval gate for autonomous AI agents. Protect any API key from prompt injection and rogue behavior.
 
-Works with any agent framework: OpenClaw, Hermes, LangChain, CrewAI, AutoGPT, Claude Code, or raw API calls.
+If you're running an AI agent that operates on its own - responding to messages, running cron jobs, managing workflows without you watching - airlock lets you give it API access without giving it full control. Your agent queues actions, you approve or reject them from your phone via Telegram. Nothing executes without your tap.
 
 You decide which actions need approval and which don't. Let your agent read timelines, search, and manage lists freely, but require your approval before it tweets, sends DMs, or makes payments. Fine-grained control without slowing down the work that's safe to automate.
+
+Works with any agent framework: Hermes, LangChain, CrewAI, AutoGPT, Claude Code, or raw API calls.
 
 ## Prerequisites
 
