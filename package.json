@@ -1,6 +1,6 @@
 {
   "name": "agent-airlock",
-  "version": "0.1.4",
+  "version": "0.1.6",
   "description": "Human approval gate for AI agent actions. Drop-in protection against prompt injection for any API key.",
   "type": "module",
   "main": "dist/index.js",

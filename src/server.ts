@@ -116,7 +116,7 @@ export function startAirlock(config: AirlockConfig) {
           try {
             const result = await executor(pending)
             await store.resolve(id, 'approved', result.data)
-            if (chatId) await bot.sendMessage(String(chatId), result.message || 'Approved and executed.')
+            if (chatId) await bot.sendMessage(String(chatId), result.message || 'Approved.')
           } catch (err) {
             const errMsg = err instanceof Error ? err.message : String(err)
             if (chatId) await bot.sendMessage(String(chatId), `Execution failed: ${errMsg}`)
