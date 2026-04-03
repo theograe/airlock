@@ -1,0 +1,32 @@
+{
+  "name": "airlock",
+  "version": "0.1.0",
+  "description": "Human approval gate for AI agent actions. Drop-in protection against prompt injection for any API key.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "airlock": "dist/bin/airlock.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/bin/airlock.ts start",
+    "start": "node dist/bin/airlock.js start"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "security",
+    "approval",
+    "prompt-injection",
+    "telegram",
+    "human-in-the-loop"
+  ],
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "tsx": "^4.19.0",
+    "@types/node": "^22.0.0"
+  }
+}
