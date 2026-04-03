@@ -6,6 +6,28 @@ Works with any agent framework: OpenClaw, Hermes, LangChain, CrewAI, AutoGPT, Cl
 
 You decide which actions need approval and which don't. Let your agent read timelines, search, and manage lists freely - but require your approval before it tweets, sends DMs, or makes payments. Fine-grained control without slowing down the work that's safe to automate.
 
+## Prerequisites
+
+Airlock handles the approval flow. You handle the isolation. Before setting up airlock, make sure:
+
+1. **Your agent cannot read your API keys.** Airlock stores secrets in its own `.airlock/.env` file, but if your agent runs as the same OS user, it can read that file. Run your agent as a separate OS user with no access to airlock's directory. On Linux:
+   ```bash
+   # Create a restricted user for your agent
+   sudo useradd -m -s /bin/bash agent
+   # Your main user runs airlock and owns the secrets
+   # The agent user can only reach airlock via HTTP on localhost
+   ```
+
+2. **Your agent cannot sudo.** If it can, it can read anything. Remove sudo access for the agent user.
+
+3. **Your agent calls airlock instead of the API directly.** Instead of giving your agent an X API key, give it access to `http://localhost:4444/queue`. Airlock holds the real keys and only uses them when you approve.
+
+4. **A server with a public IP.** Telegram needs to reach your webhook server. Any VPS works (Hetzner, DigitalOcean, AWS, etc).
+
+5. **Node.js 18+** and **openssl** (for generating self-signed certs).
+
+Without #1 and #2, airlock's approval gate can be bypassed. The approval flow is cryptographically secure, but it assumes the agent process is isolated from the secrets.
+
 ## Why
 
 AI agents with API keys have two failure modes:
