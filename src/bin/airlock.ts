@@ -13,7 +13,7 @@ function ask(question: string): Promise<string> {
 }
 
 async function init() {
-  console.log('\n  airlock init\n')
+  console.log('\n  agent-airlock init\n')
 
   mkdirSync(path.join(AIRLOCK_DIR, 'data', 'pending'), { recursive: true })
   mkdirSync(path.join(AIRLOCK_DIR, 'data', 'done'), { recursive: true })
@@ -44,7 +44,7 @@ async function init() {
     const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: userId, text: 'airlock connected.' }),
+      body: JSON.stringify({ chat_id: userId, text: 'agent-airlock connected.' }),
     })
     const data = await res.json() as { ok: boolean }
     if (data.ok) {
@@ -96,12 +96,12 @@ export default config
   }
 
   console.log(`
-  airlock initialized.
+  agent-airlock initialized.
 
   Files:
     .airlock/.env       secrets (add to .gitignore)
     .airlock/data/      pending and resolved approvals
-    airlock.config.ts   define your executors here
+    agent-airlock.config.ts   define your executors here
 
   Next steps:
     1. Edit airlock.config.ts to add your executors
@@ -130,22 +130,22 @@ async function start() {
     const mod = await import(path.resolve(CONFIG_FILE))
     config = mod.default
   } catch {
-    console.error('  Could not load airlock.config.ts. Run "airlock init" first.')
+    console.error('  Could not load airlock.config.ts. Run "agent-airlock init" first.')
     process.exit(1)
   }
 
-  console.log('\n  airlock starting...\n')
+  console.log('\n  agent-airlock starting...\n')
 
   const { startAirlock } = await import('../server.js')
   startAirlock(config)
 
-  console.log('\n  airlock is running. Press Ctrl+C to stop.\n')
+  console.log('\n  agent-airlock is running. Press Ctrl+C to stop.\n')
 }
 
 async function status() {
   const envPath = path.join(AIRLOCK_DIR, '.env')
   if (!existsSync(envPath)) {
-    console.log('  airlock not initialized. Run "airlock init" first.')
+    console.log('  agent-airlock not initialized. Run "agent-airlock init" first.')
     return
   }
 
@@ -160,7 +160,7 @@ async function status() {
   const pending = await store.listPending()
 
   console.log(`
-  airlock status
+  agent-airlock status
 
   Queue port: ${process.env.AIRLOCK_QUEUE_PORT || '4444'}
   Pending approvals: ${pending.length}
@@ -176,11 +176,11 @@ switch (command) {
   case 'status': await status(); break
   default:
     console.log(`
-  airlock - human approval gate for AI agent actions
+  agent-airlock - human approval gate for AI agent actions
 
   Usage:
-    airlock init     Set up bot and config
-    airlock start    Start the approval server
-    airlock status   Check pending approvals
+    agent-airlock init     Set up bot and config
+    agent-airlock start    Start the approval server
+    agent-airlock status   Check pending approvals
 `)
 }

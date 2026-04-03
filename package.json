@@ -1,12 +1,12 @@
 {
   "name": "agent-airlock",
-  "version": "0.1.1",
+  "version": "0.1.4",
   "description": "Human approval gate for AI agent actions. Drop-in protection against prompt injection for any API key.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "airlock": "dist/bin/airlock.js"
+    "agent-airlock": "bin/agent-airlock.js"
   },
   "scripts": {
     "build": "tsc",
@@ -23,10 +23,11 @@
     "human-in-the-loop"
   ],
   "license": "MIT",
-  "dependencies": {},
+  "dependencies": {
+    "tsx": "^4.19.0"
+  },
   "devDependencies": {
     "typescript": "^5.7.0",
-    "tsx": "^4.19.0",
     "@types/node": "^22.0.0"
   }
 }
