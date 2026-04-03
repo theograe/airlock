@@ -4,6 +4,8 @@ Human approval gate for AI agent actions. Drop-in protection against prompt inje
 
 Your AI agent can queue actions (tweets, emails, payments, anything). You see the exact content on Telegram and tap Approve or Reject. Nothing executes without your physical button tap.
 
+Works with any agent framework: OpenClaw, Hermes, LangChain, CrewAI, AutoGPT, Claude Code, or raw API calls.
+
 ## Why
 
 AI agents with API keys are vulnerable to prompt injection. A crafted input can trick your agent into posting tweets, sending emails, or making payments without your knowledge.
@@ -102,8 +104,6 @@ curl http://localhost:4444/pending
 ```
 
 The `context` field is optional - it lets the agent explain why it wants to take this action, which shows up in your Telegram message.
-
-Works with any agent framework: OpenClaw, Hermes, LangChain, CrewAI, AutoGPT, Claude Code, or raw API calls.
 
 ## Architecture
 
