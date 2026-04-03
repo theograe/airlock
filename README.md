@@ -4,11 +4,11 @@ Approval gate for AI agent actions. Protect any API key from prompt injection an
 
 Works with any agent framework: OpenClaw, Hermes, LangChain, CrewAI, AutoGPT, Claude Code, or raw API calls.
 
-You decide which actions need approval and which don't. Let your agent read timelines, search, and manage lists freely - but require your approval before it tweets, sends DMs, or makes payments. Fine-grained control without slowing down the work that's safe to automate.
+You decide which actions need approval and which don't. Let your agent read timelines, search, and manage lists freely, but require your approval before it tweets, sends DMs, or makes payments. Fine-grained control without slowing down the work that's safe to automate.
 
 ## Prerequisites
 
-Airlock handles the approval flow. You handle the isolation. Before setting up airlock, make sure:
+Before setting up airlock, make sure:
 
 1. **Your agent cannot read your API keys.** Airlock stores secrets in its own `.airlock/.env` file, but if your agent runs as the same OS user, it can read that file. Run your agent as a separate OS user with no access to airlock's directory. On Linux:
    ```bash
