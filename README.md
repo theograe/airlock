@@ -1,17 +1,19 @@
 # airlock
 
-Human approval gate for AI agent actions. Drop-in protection against prompt injection for any API key.
-
-Your AI agent can queue actions (tweets, emails, payments, anything). You see the exact content on Telegram and tap Approve or Reject. Nothing executes without your physical button tap.
+Approval gate for AI agent actions. Protect any API key from prompt injection and rogue behavior.
 
 Works with any agent framework: OpenClaw, Hermes, LangChain, CrewAI, AutoGPT, Claude Code, or raw API calls.
 
+You decide which actions need approval and which don't. Let your agent read timelines, search, and manage lists freely - but require your approval before it tweets, sends DMs, or makes payments. Fine-grained control without slowing down the work that's safe to automate.
+
 ## Why
 
-AI agents with API keys are vulnerable to prompt injection. A crafted input can trick your agent into posting tweets, sending emails, or making payments without your knowledge.
+AI agents with API keys have two failure modes:
 
-Airlock solves this by putting a cryptographically verified human approval step between your agent and any sensitive API. The agent can queue actions but cannot execute them - only you can, via Telegram.
+1. **Prompt injection** - a crafted input tricks your agent into taking actions you never intended
+2. **Rogue behavior** - the agent misinterprets instructions or makes bad judgment calls on its own
 
+Airlock solves both by putting a cryptographically verified human approval step between your agent and any sensitive action. The agent can read, search, and organize freely - but anything that speaks as you, spends your money, or contacts someone requires your explicit approval via Telegram.
 ## How it works
 
 ```
